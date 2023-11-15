@@ -1,23 +1,19 @@
 ﻿using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace FactorialProcessorAPI
 {
-    public static class FactorialProcessor
+    public class FactorialProcessor
     {
         /// <summary>
-        /// list of treads that calculating factorials of numbers
-        /// </summary>
-        private static List<Thread> _threads = new List<Thread>();
-
-        /// <summary>
-        /// Calculates factorials of numbers from 1 to YOUR NUMBER.
+        /// Asynchronously calculates factorials of numbers from 1 to YOUR NUMBER.
         /// </summary>
         /// <param name="param">Number to calculating factorial</param>
         /// <param name="parallelMode">if true - numbers calculating parallel; if false - consistently</param>
-        public static void Go(int param, bool parallelMode)
+        /// <param name="token">Cancellation token</param>
+        public async Task GoAsync(int param, bool parallelMode, CancellationToken token)
         {
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
+            Stopwatch sw = Stopwatch.StartNew();
 
             if (param < 1)
                 param = 1;
@@ -25,22 +21,54 @@ namespace FactorialProcessorAPI
             else if (param > 15)
                 param = 15;
 
-
             if (parallelMode)
             {
+                List<Task<string>> tasks = new List<Task<string>>();
+
                 for (int i = 1; i <= param; i++)
                 {
-                    CalculateFactorialParallel(i);
+                    int a = i;
+                    tasks.Add(Task.Run(() => PrintFactorialAsync(a, token)));
                 }
 
-                WaitAll();
+                try
+                {
+                    await Task.WhenAll(tasks.ToArray());
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Parallel calculating canceled!");
+                }
+                finally
+                {
+                    foreach (var task in tasks)
+                    {
+                        if (task.IsCompletedSuccessfully)
+                        {
+                            Console.WriteLine($"Task: {task.Result}");
+                        }
+                        else if (task.IsCanceled)
+                        {
+                            Console.WriteLine("Task was canceled!");
+                        }
+                    }
+                }
+
                 ShowTimeStatistic(sw);
             }
             else
             {
                 for (int i = 1; i <= param; i++)
                 {
-                    Console.Write($"{CalculateFactorial(i)}\t");
+                    try
+                    {
+                        var result = await PrintFactorialAsync(i, token);
+                        Console.WriteLine(result);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Console.WriteLine($"Calculating factorial for {i} is canceled!");
+                    }
                 }
 
                 ShowTimeStatistic(sw);
@@ -48,55 +76,44 @@ namespace FactorialProcessorAPI
         }
 
         /// <summary>
-        /// Creates new thread to calculate factorial of number
+        /// Asynchronously calculates factorial of number
         /// </summary>
-        /// <param name="param"></param>
-        private static void CalculateFactorialParallel(int param)
+        /// <param name="param">Number to calculating factorial</param>
+        /// <param name="token">Cancellation token</param>
+        /// <returns>Task<string> String result of factorial</returns>
+        private async Task<string> PrintFactorialAsync(int param, CancellationToken token)
         {
-            Thread thread = new Thread(() => Console.Write($"{CalculateFactorial(param)}\t"));
-            _threads.Add(thread);
-            thread.Start();
+            var result = await Task.Run( () => CalculateFactorial(param, token));
+            return $"Factorial ({param}) is {result}";
         }
 
         /// <summary>
         /// Main method that calculates factorial of number 
         /// </summary>
-        /// <param name="param"></param>
-        /// <returns></returns>
-        private static int CalculateFactorial(int param)
+        /// <param name="param">Number to calculating factorial</param>
+        /// <param name="token">Cancellation token</param>
+        /// <returns>Factorial number</returns>
+        private int CalculateFactorial(int param, CancellationToken token)
         {
-            //Thread.Sleep(1); //it can show us, that if there was a lot of hard calculating,
-                                //it would make sense for us to create a separate thread
-                                //for each calculation of the factorial of a number
-                                //but in our case we spend a lot of resources to create a new thread 
-                                //and it not only doesn't make sense, it also makes things worse. 
-                                //Consistent algorithm works faster than parallel in our case. 
+            token.ThrowIfCancellationRequested();
+
+            Thread.Sleep(1000); 
+
             if (param == 1)
                 return 1;
 
-            return param * CalculateFactorial(param - 1);
+            return param * CalculateFactorial(param - 1, token);
         }
 
         /// <summary>
         /// Shows time statistic 
         /// </summary>
-        /// <param name="sw"></param>
-        private static void ShowTimeStatistic(Stopwatch sw)
+        /// <param name="sw">Stopwatch to show data</param>
+        private void ShowTimeStatistic(Stopwatch sw)
         {
             sw.Stop();
             Console.WriteLine($"\nTicks: {sw.ElapsedTicks} ticks");
             Console.WriteLine($"Time: {sw.Elapsed.TotalMilliseconds} milliseconds\n");
-        }
-
-        /// <summary>
-        /// Blocks main thread to wait all backgroung threads that calculating factorials. Used in Go(int ..., true)
-        /// </summary>
-        private static void WaitAll()
-        {
-            foreach (var thread in _threads)
-            {
-                thread.Join();
-            }
         }
     }
 }

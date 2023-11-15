@@ -1,5 +1,6 @@
 ﻿using FactorialProcessorAPI;
 using System.Diagnostics;
+using System.Threading.Tasks.Dataflow;
 
 namespace FactorialProcessor
 {
@@ -7,33 +8,24 @@ namespace FactorialProcessor
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Consistently:");
+            var source = new CancellationTokenSource();
+            FactorialProcessorAPI.FactorialProcessor fp = new FactorialProcessorAPI.FactorialProcessor();
 
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
+            Task.Run(() => fp.GoAsync(10, true, source.Token), source.Token);
+            Task.Run(() => fp.GoAsync(10, false, source.Token), source.Token);
 
-            FactorialProcessorAPI.FactorialProcessor.Go(5, false);
-            FactorialProcessorAPI.FactorialProcessor.Go(10, false);
-            FactorialProcessorAPI.FactorialProcessor.Go(15, false);
+            //for more examples uncomment this lines
+            //Task.Run(() => fp.GoAsync(4, false, source.Token), source.Token);
+            //Task.Run(() => fp.GoAsync(10, true, source.Token), source.Token);
             
-            sw.Stop();
-            Console.WriteLine($"ALL TICKS: {sw.ElapsedTicks} ticks");
-            Console.WriteLine($"ALL TIME: {sw.Elapsed.TotalMilliseconds} milliseconds");
-            Console.WriteLine();
+            //for cancellation uncomment this 
+            source.CancelAfter(3000);
 
-
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("Parallel:");
-
-            sw.Reset();
-            sw.Start();
-            FactorialProcessorAPI.FactorialProcessor.Go(5, true);
-            FactorialProcessorAPI.FactorialProcessor.Go(10, true);
-            FactorialProcessorAPI.FactorialProcessor.Go(15, true);
-
-            sw.Stop();
-            Console.WriteLine($"ALL TICKS IN PARALLEL: {sw.ElapsedTicks} ticks");
-            Console.WriteLine($"ALL TIME IN PARALLEL: {sw.Elapsed.TotalMilliseconds} milliseconds");
+            while (true)
+            {
+                Thread.Sleep(1000);
+                Console.WriteLine("Main is Working...");
+            }
         }
     }
 }
